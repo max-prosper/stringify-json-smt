@@ -1,18 +1,15 @@
-package github.maxprosper.smt.stringifyjson;
+package com.github.maxprosper.smt.stringifyjson;
 
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.connect.connector.ConnectRecord;
+import org.apache.kafka.connect.transforms.Transformation;
+import org.apache.kafka.connect.transforms.util.SimpleConfig;
 import org.apache.kafka.connect.data.Field;
 import org.apache.kafka.connect.data.Values;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
-
-import com.github.jcustenborder.kafka.connect.transform.common.BaseTransformation;
-import com.github.jcustenborder.kafka.connect.utils.config.Description;
-import com.github.jcustenborder.kafka.connect.utils.config.DocumentationTip;
-import com.github.jcustenborder.kafka.connect.utils.config.Title;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -28,30 +25,28 @@ import org.json.JSONException;
 
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
-@Title("StringifyJson")
-@Description("This transformation is used to convert object values to JSON strings.")
-@DocumentationTip("This transformation will replace any object with its JSON string representation.")
-public class StringifyJson<R extends ConnectRecord<R>> extends BaseTransformation<R> {
+abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformation<R> {
     private static final Logger LOGGER = LoggerFactory.getLogger(StringifyJson.class);
 
     private static final String PURPOSE = "StringifyJson expansion";
-    private String[] sourceFields;
+    private List<String> sourceFields;
 
-    private final String delimiterJoin = ".";
+    private String delimiterJoin = ".";
 
-    @Override
-    public ConfigDef config() {
-        return StringifyJsonConfig.config();
+    interface ConfigName {
+        String SOURCE_FIELDS = "sourceFields";
     }
 
-    @Override
-    public void close() {
-    }
+    private static final ConfigDef CONFIG_DEF = new ConfigDef()
+            .define(ConfigName.SOURCE_FIELDS,
+                    ConfigDef.Type.LIST, "",
+                    ConfigDef.Importance.HIGH,
+                    "Source field name. This field will be expanded to json object.");
 
     @Override
     public void configure(Map<String, ?> configs) {
-        StringifyJsonConfig config = new StringifyJsonConfig(configs);
-        sourceFields = config.sourceFields;
+        final SimpleConfig config = new SimpleConfig(CONFIG_DEF, configs);
+        sourceFields = config.getList(ConfigName.SOURCE_FIELDS);
     }
 
     @Override
@@ -134,8 +129,8 @@ public class StringifyJson<R extends ConnectRecord<R>> extends BaseTransformatio
         return "[" + builder.toString() + "]";
     }
 
-    private static HashMap<String, String> stringifyFields(Struct value, String[] sourceFields) {
-        final HashMap<String, String> result = new HashMap<>(sourceFields.length);
+    private static HashMap<String, String> stringifyFields(Struct value, List<String> sourceFields) {
+        final HashMap<String, String> result = new HashMap<>(sourceFields.size());
 
         for (String field : sourceFields) {
             String[] pathArr = field.split("\\.");
@@ -267,6 +262,39 @@ public class StringifyJson<R extends ConnectRecord<R>> extends BaseTransformatio
         }
 
         return result;
+    }
+
+    @Override
+    public ConfigDef config() {
+        return CONFIG_DEF;
+    }
+
+    @Override
+    public void close() {
+    }
+
+    protected abstract Schema operatingSchema(R record);
+
+    protected abstract Object operatingValue(R record);
+
+    protected abstract R newRecord(R record, Schema updatedSchema, Object updatedValue);
+
+    public static class Value<R extends ConnectRecord<R>> extends StringifyJson<R> {
+
+        @Override
+        protected Schema operatingSchema(R record) {
+            return record.valueSchema();
+        }
+
+        @Override
+        protected Object operatingValue(R record) {
+            return record.value();
+        }
+
+        @Override
+        protected R newRecord(R record, Schema updatedSchema, Object updatedValue) {
+            return record.newRecord(record.topic(), record.kafkaPartition(), record.keySchema(), record.key(), updatedSchema, updatedValue, record.timestamp());
+        }
     }
 }
 
