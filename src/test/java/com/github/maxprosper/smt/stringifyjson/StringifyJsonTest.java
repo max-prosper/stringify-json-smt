@@ -21,50 +21,249 @@ public class StringifyJsonTest {
         xform.close();
     }
 
-    private final StringifyJson<SinkRecord> xform = new StringifyJson.Value<>();
-    private final Schema STRUCT_SCHEMA = SchemaBuilder.struct()
-            .field("name", Schema.STRING_SCHEMA)
-            .field("age", Schema.OPTIONAL_INT8_SCHEMA);
-    private final Schema ARRAY_SCHEMA = SchemaBuilder.array(STRUCT_SCHEMA).build();
-
     private final Schema keySchema = SchemaBuilder.struct().field("key", Schema.STRING_SCHEMA).build();
     private final Struct key = new Struct(keySchema).put("key", "key");
-    private final Schema valueSchema = SchemaBuilder.struct()
-            .field("target_field", ARRAY_SCHEMA)
-            .field("other_field", STRUCT_SCHEMA);
 
-    private final String propSourceFields = "sourceFields";
+    private final StringifyJson<SinkRecord> xform = new StringifyJson.Value<>();
+
+    private final String propTargetFields = "targetFields";
 
     @Test
-    public void basicCase() {
-        Byte age = 25;
-        Struct obj1 = new Struct(STRUCT_SCHEMA).put("name", "Bob").put("age", age);
-        Struct obj2 = new Struct(STRUCT_SCHEMA).put("name", "Alice");
-        List<Struct> array = Arrays.asList(obj1, obj2);
+    public void integerField() {
+        final Schema valueSchema = SchemaBuilder.struct()
+            .field("target_field", Schema.INT32_SCHEMA)
+            .field("other_field", Schema.INT32_SCHEMA);
 
         final Map<String, String> props = new HashMap<>();
-        props.put(propSourceFields, "target_field");
+        props.put(propTargetFields, "target_field");
         xform.configure(props);
 
-        final Struct value = new Struct(valueSchema).put("target_field", array).put("other_field", obj2);
+        final Struct inputValue = new Struct(valueSchema)
+            .put("target_field", 42)
+            .put("other_field", 24);
 
-        String outputValue = "Struct{target_field=[{\"name\":\"Bob\",\"age\":25}, {\"name\":\"Alice\"}],other_field=Struct{name=Alice}}";
-        String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{STRUCT}}]";
+        final String outputValue = "Struct{target_field=42,other_field=24}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, value, 0);
+        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
         final SinkRecord output = xform.apply(record);
 
         final Struct inputStruct = (Struct) record.value();
         final Struct outputStruct = (Struct) output.value();
 
         Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(value.toString(), cleanSchemaString(inputStruct.toString()));
-        Assertions.assertEquals(outputValue, cleanSchemaString(outputStruct.toString()));
-        Assertions.assertEquals(outputSchema, cleanSchemaString(outputStruct.schema().fields().toString()));
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
     }
 
-    String cleanSchemaString(final String schema) {
-        return schema.replaceAll("@\\w+", "");
+    @Test
+    public void booleanField() {
+        final Schema valueSchema = SchemaBuilder.struct()
+            .field("target_field", Schema.BOOLEAN_SCHEMA)
+            .field("other_field", Schema.INT32_SCHEMA);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final Struct inputValue = new Struct(valueSchema)
+            .put("target_field", true)
+            .put("other_field", 24);
+
+        final String outputValue = "Struct{target_field=true,other_field=24}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
+
+        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+
+        final Struct inputStruct = (Struct) record.value();
+        final Struct outputStruct = (Struct) output.value();
+
+        Assertions.assertEquals(output.key(), record.key());
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+    }
+
+
+    @Test
+    public void objectField() {
+        final Schema structSchema = SchemaBuilder.struct()
+            .field("first", Schema.INT32_SCHEMA)
+            .field("second", Schema.STRING_SCHEMA);
+        final Schema valueSchema = SchemaBuilder.struct()
+            .field("target_field", structSchema)
+            .field("other_field", Schema.INT32_SCHEMA);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final Object obj = new Struct(structSchema).put("first", 42).put("second", "2nd");
+        final Struct inputValue = new Struct(valueSchema)
+            .put("target_field", obj )
+            .put("other_field", 111);
+
+        final String outputValue = "Struct{target_field={\"first\":42,\"second\":\"2nd\"},other_field=111}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
+
+        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+
+        final Struct inputStruct = (Struct) record.value();
+        final Struct outputStruct = (Struct) output.value();
+
+        Assertions.assertEquals(output.key(), record.key());
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+    }
+
+    @Test
+    public void arrayOfIntsField() {
+        final Schema arraySchema = SchemaBuilder.array(Schema.INT32_SCHEMA);
+        final Schema valueSchema = SchemaBuilder.struct()
+            .field("target_field", arraySchema)
+            .field("other_field", Schema.INT32_SCHEMA);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final List<Integer> array = Arrays.asList(42, 24);
+        final Struct inputValue = new Struct(valueSchema)
+            .put("target_field", array)
+            .put("other_field", 256);
+
+        final String outputValue = "Struct{target_field=[42, 24],other_field=256}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
+
+        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+
+        final Struct inputStruct = (Struct) record.value();
+        final Struct outputStruct = (Struct) output.value();
+
+        Assertions.assertEquals(output.key(), record.key());
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+    }
+
+    @Test
+    public void arrayOfObjects() {
+        final Schema structSchema = SchemaBuilder.struct()
+            .field("name", Schema.STRING_SCHEMA)
+            .field("age", Schema.OPTIONAL_INT32_SCHEMA);
+        final Schema arraySchema = SchemaBuilder.array(structSchema).build();
+
+        final Schema valueSchema = SchemaBuilder.struct()
+            .field("target_field", arraySchema)
+            .field("other_field", structSchema);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final Struct obj1 = new Struct(structSchema).put("name", "Bob").put("age", 25);
+        final Struct obj2 = new Struct(structSchema).put("name", "Alice");
+        final List<Struct> array = Arrays.asList(obj1, obj2);
+
+        final Struct inputValue = new Struct(valueSchema).put("target_field", array).put("other_field", obj2);
+
+        final String outputValue = "Struct{target_field=[{\"name\":\"Bob\",\"age\":25}, {\"name\":\"Alice\"}],other_field=Struct{name=Alice}}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{STRUCT}}]";
+
+        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+
+        final Struct inputStruct = (Struct) record.value();
+        final Struct outputStruct = (Struct) output.value();
+
+        Assertions.assertEquals(output.key(), record.key());
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+    }
+
+    @Test
+    public void nestedArrayOfObjects() {
+        final Schema structSchema = SchemaBuilder.struct()
+            .field("name", Schema.STRING_SCHEMA)
+            .field("age", Schema.OPTIONAL_INT32_SCHEMA);
+        final Schema arraySchema = SchemaBuilder.array(structSchema).build();
+        final Schema nestedArraySchema = SchemaBuilder.array(arraySchema).build();
+
+        final Schema valueSchema = SchemaBuilder.struct()
+            .field("target_field", nestedArraySchema)
+            .field("other_field", structSchema);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final Struct obj1 = new Struct(structSchema).put("name", "Bob").put("age", 25);
+        final Struct obj2 = new Struct(structSchema).put("name", "Alice");
+        final List<Struct> array = Arrays.asList(obj1, obj2);
+        final List<List<Struct>> nestedArray = Arrays.asList(array);
+        
+        final Struct inputValue = new Struct(valueSchema).put("target_field", nestedArray).put("other_field", obj2);
+
+        final String outputValue = "Struct{target_field=[[{\"name\":\"Bob\",\"age\":25},{\"name\":\"Alice\"}]],other_field=Struct{name=Alice}}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{STRUCT}}]";
+
+        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+
+        final Struct inputStruct = (Struct) record.value();
+        final Struct outputStruct = (Struct) output.value();
+
+        Assertions.assertEquals(output.key(), record.key());
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+    }
+
+    @Test
+    public void multipleTargetFields() {
+        final Schema structSchema = SchemaBuilder.struct()
+            .field("name", Schema.STRING_SCHEMA)
+            .field("age", Schema.OPTIONAL_INT32_SCHEMA);
+        final Schema arraySchema = SchemaBuilder.array(structSchema).build();
+
+        final Schema valueSchema = SchemaBuilder.struct()
+            .field("target_field1", arraySchema)
+            .field("target_field2", structSchema)
+            .field("other_field", structSchema);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field1,target_field2");
+        xform.configure(props);
+
+        final Struct obj1 = new Struct(structSchema).put("name", "Bob").put("age", 25);
+        final Struct obj2 = new Struct(structSchema).put("name", "Alice").put("age", 25);
+        final Struct obj3 = new Struct(structSchema).put("name", "Jack");
+        final List<Struct> array = Arrays.asList(obj1);
+
+        final Struct inputValue = new Struct(valueSchema)
+            .put("target_field1", array)
+            .put("target_field2", obj2)
+            .put("other_field", obj3);
+
+        final String outputValue = "Struct{target_field1=[{\"name\":\"Bob\",\"age\":25}],target_field2={\"name\":\"Alice\",\"age\":25},other_field=Struct{name=Jack}}";
+        final String outputSchema = "[Field{name=target_field1, index=0, schema=Schema{STRING}}, Field{name=target_field2, index=1, schema=Schema{STRING}}, Field{name=other_field, index=2, schema=Schema{STRUCT}}]";
+
+        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+
+        final Struct inputStruct = (Struct) record.value();
+        final Struct outputStruct = (Struct) output.value();
+
+        Assertions.assertEquals(output.key(), record.key());
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
     }
 }
 

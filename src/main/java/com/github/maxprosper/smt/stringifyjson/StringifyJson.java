@@ -29,16 +29,16 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
     private static final Logger LOGGER = LoggerFactory.getLogger(StringifyJson.class);
 
     private static final String PURPOSE = "StringifyJson expansion";
-    private List<String> sourceFields;
+    private List<String> targetFields;
 
     private String delimiterJoin = ".";
 
     interface ConfigName {
-        String SOURCE_FIELDS = "sourceFields";
+        String TARGET_FIELDS = "targetFields";
     }
 
     private static final ConfigDef CONFIG_DEF = new ConfigDef()
-            .define(ConfigName.SOURCE_FIELDS,
+            .define(ConfigName.TARGET_FIELDS,
                     ConfigDef.Type.LIST, "",
                     ConfigDef.Importance.HIGH,
                     "Source field name. This field will be expanded to json object.");
@@ -46,7 +46,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
     @Override
     public void configure(Map<String, ?> configs) {
         final SimpleConfig config = new SimpleConfig(CONFIG_DEF, configs);
-        sourceFields = config.getList(ConfigName.SOURCE_FIELDS);
+        targetFields = config.getList(ConfigName.TARGET_FIELDS);
     }
 
     @Override
@@ -69,7 +69,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             }
 
             final Struct value = requireStruct(recordValue, PURPOSE);
-            HashMap<String, String> stringifiedFields = stringifyFields(value, sourceFields);
+            HashMap<String, String> stringifiedFields = stringifyFields(value, targetFields);
 
             final Schema updatedSchema = makeUpdatedSchema(null, value, stringifiedFields);
             final Struct updatedValue = makeUpdatedValue(null, value, updatedSchema, stringifiedFields);
@@ -129,10 +129,10 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         return "[" + builder.toString() + "]";
     }
 
-    private static HashMap<String, String> stringifyFields(Struct value, List<String> sourceFields) {
-        final HashMap<String, String> result = new HashMap<>(sourceFields.size());
+    private static HashMap<String, String> stringifyFields(Struct value, List<String> targetFields) {
+        final HashMap<String, String> result = new HashMap<>(targetFields.size());
 
-        for (String field : sourceFields) {
+        for (String field : targetFields) {
             String[] pathArr = field.split("\\.");
             List<String> path = Arrays.asList(pathArr);
             Object fieldValue = getFieldValue(path, value);
