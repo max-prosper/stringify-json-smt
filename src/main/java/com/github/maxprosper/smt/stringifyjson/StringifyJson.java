@@ -14,10 +14,7 @@ import org.apache.kafka.connect.errors.DataException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import org.json.JSONObject;
 import org.json.JSONArray;
@@ -28,7 +25,7 @@ import static org.apache.kafka.connect.transforms.util.Requirements.requireStruc
 abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformation<R> {
     private static final Logger LOGGER = LoggerFactory.getLogger(StringifyJson.class);
 
-    private static final String PURPOSE = "StringifyJson expansion";
+    private static final String PURPOSE = "StringifyJson SMT";
     private List<String> targetFields;
 
     private String delimiterJoin = ".";
@@ -84,7 +81,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                     record.timestamp()
             );
         } catch (DataException e) {
-            LOGGER.info("StringifyJson fields missing from record: " + record.toString(), e);
+            LOGGER.warn("StringifyJson fields missing from record: " + record.toString(), e);
             return record;
         }
     }
@@ -100,7 +97,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
     }
 
     @SuppressWarnings("unchecked")
-    public static String arrayObjectToString(Object value) {
+    public static String arrayValueToString(Object value) {
         if (value == null) {
             return "[]";
         }
@@ -112,11 +109,14 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                 builder.append(", ");
             }
             Schema.Type valueType = Values.inferSchema(elem).type();
-            if (valueType == Schema.Type.STRUCT || valueType == Schema.Type.MAP) {
-                builder.append(toJSONObject(elem));
+            if (valueType == Schema.Type.STRUCT) {
+                builder.append(structToJSONObject((Struct) elem));
+
+            } else if (valueType == Schema.Type.MAP) {
+                builder.append(mapToJSONObject((HashMap) elem));
 
             } else if (valueType == Schema.Type.ARRAY) {
-                builder.append(toJSONArray((List<Object>) elem));
+                builder.append(listToJSONArray((List<Object>) elem));
 
             } else if (valueType == Schema.Type.STRING) {
                 builder.append("\"").append(elem).append("\"");
@@ -140,14 +140,17 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             String strValue;
             Schema.Type fieldValueType = Values.inferSchema(fieldValue).type();
 
-            if (fieldValueType == Schema.Type.STRUCT || fieldValueType == Schema.Type.MAP) {
-                strValue = toJSONObject(fieldValue).toString();
+            if (fieldValueType == Schema.Type.STRUCT) {
+                strValue = structToJSONObject((Struct) fieldValue).toString();
+
+            } else if (fieldValueType == Schema.Type.MAP) {
+                strValue = mapToJSONObject((HashMap) fieldValue).toString();
+
+            } else if (fieldValueType == Schema.Type.ARRAY) {
+                strValue = arrayValueToString(fieldValue);
 
             } else if (fieldValueType == Schema.Type.STRING) {
                 strValue = fieldValue.toString();
-
-            } else if (fieldValueType == Schema.Type.ARRAY) {
-                strValue = arrayObjectToString(fieldValue);
 
             } else {
                 strValue = String.valueOf(fieldValue);
@@ -206,59 +209,124 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         return updatedValue;
     }
 
-    private static JSONObject toJSONObject(Object obj) {
-        JSONObject updatedObject = new JSONObject();
-        Struct struct = (Struct) obj;
-        Schema schema = struct.schema();
 
-        String exceptionMsg = "Failed to put updated object value to field '{}', erorr: '{}'";
-        for (Field field : schema.fields()) {
+    private static JSONObject structToJSONObject(Struct value) {
+        JSONObject updatedObject = new JSONObject();
+
+        String exceptionMsg = "Failed to put updated object value to field '{}', error: '{}'";
+        for (Field field : value.schema().fields()) {
             Schema.Type fieldType = field.schema().type();
             if (fieldType == Schema.Type.STRUCT) {
-                Struct fieldValue = struct.getStruct(field.name());
                 try {
-                    updatedObject.put(field.name(), toJSONObject(fieldValue));
+                    updatedObject.put(field.name(), structToJSONObject(value.getStruct(field.name())));
                 } catch (JSONException e) {
-                    LOGGER.info(exceptionMsg, field.name(), e.toString());
+                    LOGGER.error(exceptionMsg, field.name(), e.toString());
                     e.printStackTrace();
+                    return null;
                 }
-
             } else if (fieldType == Schema.Type.ARRAY) {
                 try {
-                    updatedObject.put(field.name(), toJSONArray(struct.getArray(field.name())));
+                    updatedObject.put(field.name(), listToJSONArray(value.getArray(field.name())));
                 } catch (JSONException e) {
-                    LOGGER.info(exceptionMsg, field.name(), e.toString());
+                    LOGGER.error(exceptionMsg, field.name(), e.toString());
                     e.printStackTrace();
+                    return null;
                 }
 
             } else try {
-                updatedObject.put(field.name(), struct.get(field.name()));
+                updatedObject.put(field.name(), value.get(field.name()));
             } catch (JSONException e) {
-                LOGGER.info(exceptionMsg, field.name(), e.toString());
+                LOGGER.error(exceptionMsg, field.name(), e.toString());
                 e.printStackTrace();
+                return null;
             }
         }
 
         return updatedObject;
     }
 
+    private static JSONObject mapToJSONObject(HashMap value) {
+        JSONObject updatedObject = new JSONObject();
+
+        String exceptionMsg = "Failed to put updated map value to key '{}', error: '{}'";
+        for (Object key : value.keySet()) {
+            Object val = value.get(key);
+
+            if (!(val instanceof Struct)) {
+                try {
+                    updatedObject.put(key.toString(), val);
+                    continue;
+                } catch (JSONException e) {
+                    LOGGER.error(exceptionMsg, key, e.toString());
+                    e.printStackTrace();
+                    return null;
+                }
+            }
+
+            Struct structValue = (Struct) val;
+            Schema.Type fieldType = structValue.schema().type();
+
+            if (fieldType == Schema.Type.STRUCT) {
+                try {
+                    updatedObject.put(key.toString(), structToJSONObject(structValue));
+                } catch (JSONException e) {
+                    LOGGER.error(exceptionMsg, key, e.toString());
+                    e.printStackTrace();
+                    return null;
+                }
+
+            } else if (fieldType == Schema.Type.MAP) {
+                try {
+                    updatedObject.put(key.toString(), mapToJSONObject((HashMap) val));
+                } catch (JSONException e) {
+                    LOGGER.error(exceptionMsg, key, e.toString());
+                    e.printStackTrace();
+                    return null;
+                }
+
+            } else if (fieldType == Schema.Type.ARRAY) {
+                try {
+                    updatedObject.put(key.toString(), listToJSONArray((List<Object>) structValue));
+                } catch (JSONException e) {
+                    LOGGER.error(exceptionMsg, key, e.toString());
+                    e.printStackTrace();
+                    return null;
+                }
+
+            } else try {
+                updatedObject.put(key.toString(), structValue);
+            } catch (JSONException e) {
+                LOGGER.error(exceptionMsg, key, e.toString());
+                e.printStackTrace();
+                return null;
+            }
+        }
+
+
+        return updatedObject;
+    }
+
     @SuppressWarnings("unchecked")
-    private static JSONArray toJSONArray(List<Object> array) {
+    private static JSONArray listToJSONArray(List<Object> value) {
         JSONArray result = new JSONArray();
 
-        for (Object arrayElement : array) {
-            if (!(arrayElement instanceof Struct)) {
-                result.put(arrayElement);
+        for (Object element : value) {
+            if (!(element instanceof Struct)) {
+                result.put(element);
                 continue;
             }
 
-            Struct struct = (Struct) arrayElement;
+            Struct struct = (Struct) element;
             if (struct.schema().type() == Schema.Type.ARRAY) {
-                result.put(toJSONArray((List<Object>) arrayElement));
+                result.put(listToJSONArray((List<Object>) element));
+                continue;
+            }
+            if (struct.schema().type() == Schema.Type.MAP) {
+                result.put(mapToJSONObject((HashMap) element));
                 continue;
             }
 
-            result.put(toJSONObject(arrayElement));
+            result.put(structToJSONObject((Struct) element));
         }
 
         return result;
