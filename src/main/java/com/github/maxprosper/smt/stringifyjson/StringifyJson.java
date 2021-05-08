@@ -22,6 +22,9 @@ import org.json.JSONException;
 
 import static org.apache.kafka.connect.transforms.util.Requirements.requireStruct;
 
+/**
+ * Main class that implements stringify JSON transformation.
+ */
 abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformation<R> {
     private static final Logger LOGGER = LoggerFactory.getLogger(StringifyJson.class);
 
@@ -38,7 +41,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             .define(ConfigName.TARGET_FIELDS,
                     ConfigDef.Type.LIST, "",
                     ConfigDef.Importance.HIGH,
-                    "Source field name. This field will be expanded to json object.");
+                    "Names of target fields. These fields will be stringified.");
 
     @Override
     public void configure(Map<String, ?> configs) {
@@ -86,49 +89,12 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         }
     }
 
-    private static Object getFieldValue(List<String> path, Struct value) {
-        if (path.isEmpty()) {
-            return null;
-        } else if (path.size() == 1) {
-            return value.get(path.get(0));
-        } else {
-            return getFieldValue(path.subList(1, path.size()), value.getStruct(path.get(0)));
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    public static String arrayValueToString(Object value) {
-        if (value == null) {
-            return "[]";
-        }
-        List<Object> inputArr = (List<Object>) value;
-        StringBuilder builder = new StringBuilder();
-
-        for (Object elem : inputArr) {
-            if (builder.toString().length() != 0) {
-                builder.append(", ");
-            }
-            Schema.Type valueType = Values.inferSchema(elem).type();
-            if (valueType == Schema.Type.STRUCT) {
-                builder.append(structToJSONObject((Struct) elem));
-
-            } else if (valueType == Schema.Type.MAP) {
-                builder.append(mapToJSONObject((HashMap) elem));
-
-            } else if (valueType == Schema.Type.ARRAY) {
-                builder.append(listToJSONArray((List<Object>) elem));
-
-            } else if (valueType == Schema.Type.STRING) {
-                builder.append("\"").append(elem).append("\"");
-
-            } else {
-                return inputArr.toString();
-            }
-        }
-
-        return "[" + builder.toString() + "]";
-    }
-
+    /**
+     * Stringify values from specified fields.
+     * @param value Input record to read original fields.
+     * @param targetFields List of fields to stringify values from.
+     * @return Resulting stringified values by field names.
+     */
     private static HashMap<String, String> stringifyFields(Struct value, List<String> targetFields) {
         final HashMap<String, String> result = new HashMap<>(targetFields.size());
 
@@ -147,7 +113,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                 strValue = mapToJSONObject((HashMap) fieldValue).toString();
 
             } else if (fieldValueType == Schema.Type.ARRAY) {
-                strValue = arrayValueToString(fieldValue);
+                strValue = arrayValueToString((List<Object>) fieldValue);
 
             } else if (fieldValueType == Schema.Type.STRING) {
                 strValue = fieldValue.toString();
@@ -161,13 +127,12 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         return result;
     }
 
-    private String joinKeys(String parent, String child) {
-        if (parent == null) {
-            return child;
-        }
-        return parent + delimiterJoin + child;
-    }
-
+    /**
+     * Make schema for updated value.
+     * @param value Input value to take the schema from.
+     * @param stringifiedFields Resulting stringified values by field names.
+     * @return New schema for output record.
+     */
     private Schema makeUpdatedSchema(String parentKey, Struct value, HashMap<String, String> stringifiedFields) {
         final SchemaBuilder builder = SchemaBuilder.struct();
 
@@ -189,6 +154,13 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         return builder.build();
     }
 
+    /**
+     * Replace values in target fields with stringified results and copy non-target values from original object.
+     * @param value Original value.
+     * @param updatedSchema Schema for new output record.
+     * @param stringifiedFields Stringified values by field names.
+     * @return Output record with stringified values.
+     */
     private Struct makeUpdatedValue(String parentKey, Struct value, Schema updatedSchema, HashMap<String, String> stringifiedFields) {
         final Struct updatedValue = new Struct(updatedSchema);
 
@@ -209,6 +181,38 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         return updatedValue;
     }
 
+    @SuppressWarnings("unchecked")
+    public static String arrayValueToString(List<Object> value) {
+        if (value == null || value.size() == 0) {
+            return "[]";
+        }
+
+        StringBuilder builder = new StringBuilder();
+
+        for (Object elem : value) {
+            if (builder.toString().length() != 0) {
+                builder.append(", ");
+            }
+            Schema.Type valueType = Values.inferSchema(elem).type();
+            if (valueType == Schema.Type.STRUCT) {
+                builder.append(structToJSONObject((Struct) elem));
+
+            } else if (valueType == Schema.Type.MAP) {
+                builder.append(mapToJSONObject((HashMap) elem));
+
+            } else if (valueType == Schema.Type.ARRAY) {
+                builder.append(listToJSONArray((List<Object>) elem));
+
+            } else if (valueType == Schema.Type.STRING) {
+                builder.append("\"").append(elem).append("\"");
+
+            } else {
+                return value.toString();
+            }
+        }
+
+        return "[" + builder.toString() + "]";
+    }
 
     private static JSONObject structToJSONObject(Struct value) {
         JSONObject updatedObject = new JSONObject();
@@ -224,6 +228,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                     e.printStackTrace();
                     return null;
                 }
+
             } else if (fieldType == Schema.Type.ARRAY) {
                 try {
                     updatedObject.put(field.name(), listToJSONArray(value.getArray(field.name())));
@@ -302,7 +307,6 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             }
         }
 
-
         return updatedObject;
     }
 
@@ -330,6 +334,23 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         }
 
         return result;
+    }
+
+    private static Object getFieldValue(List<String> path, Struct value) {
+        if (path.isEmpty()) {
+            return null;
+        } else if (path.size() == 1) {
+            return value.get(path.get(0));
+        } else {
+            return getFieldValue(path.subList(1, path.size()), value.getStruct(path.get(0)));
+        }
+    }
+
+    private String joinKeys(String parent, String child) {
+        if (parent == null) {
+            return child;
+        }
+        return parent + delimiterJoin + child;
     }
 
     @Override
@@ -361,8 +382,15 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
 
         @Override
         protected R newRecord(R record, Schema updatedSchema, Object updatedValue) {
-            return record.newRecord(record.topic(), record.kafkaPartition(), record.keySchema(), record.key(), updatedSchema, updatedValue, record.timestamp());
+            return record.newRecord(
+                    record.topic(),
+                    record.kafkaPartition(),
+                    record.keySchema(),
+                    record.key(),
+                    updatedSchema,
+                    updatedValue,
+                    record.timestamp()
+            );
         }
     }
 }
-
