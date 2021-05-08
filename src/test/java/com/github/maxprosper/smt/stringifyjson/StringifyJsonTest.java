@@ -28,6 +28,18 @@ public class StringifyJsonTest {
 
     private final String propTargetFields = "targetFields";
 
+    private void runAssertions(Schema valueSchema, Object inputValue, String outputSchema, String outputValue) {
+        final SinkRecord record = new SinkRecord("test", 0, this.keySchema, this.key, valueSchema, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+        final Struct inputStruct = (Struct) record.value();
+        final Struct outputStruct = (Struct) output.value();
+
+        Assertions.assertEquals(output.key(), record.key());
+        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
+        Assertions.assertEquals(outputValue, outputStruct.toString());
+        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+    }
+
     @Test
     public void integerField() {
         final Schema valueSchema = SchemaBuilder.struct()
@@ -45,16 +57,7 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field=42,other_field=24}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
 
     @Test
@@ -74,18 +77,8 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field=true,other_field=24}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
-
 
     @Test
     public void objectField() {
@@ -108,18 +101,8 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field={\"first\":42,\"second\":\"2nd\"},other_field=111}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
-
 
     @Test
     public void mapField() {
@@ -142,18 +125,8 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field={\"first\":\"1st\",\"second\":\"2nd\"},other_field=111}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
-
 
     @Test
     public void nestedMapField() {
@@ -179,16 +152,7 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field={\"first\":{\"first\":\"1st\",\"second\":\"2nd\"}},other_field=111}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
 
     @Test
@@ -210,16 +174,7 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field=[42, 24],other_field=256}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
 
     @Test
@@ -246,18 +201,8 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field=[{\"name\":\"Bob\",\"age\":25}, {\"name\":\"Alice\"}],other_field=Struct{name=Alice}}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{STRUCT}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
-
 
     @Test
     public void arrayOfMaps() {
@@ -284,16 +229,7 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field=[{\"first\":1,\"second\":2}, {\"third\":3}],other_field=other}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{STRING}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
 
     @Test
@@ -322,16 +258,7 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field=[[{\"name\":\"Bob\",\"age\":25},{\"name\":\"Alice\"}]],other_field=Struct{name=Alice}}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{STRUCT}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
 
     @Test
@@ -363,16 +290,6 @@ public class StringifyJsonTest {
         final String outputValue = "Struct{target_field1=[{\"name\":\"Bob\",\"age\":25}],target_field2={\"name\":\"Alice\",\"age\":25},other_field=Struct{name=Jack}}";
         final String outputSchema = "[Field{name=target_field1, index=0, schema=Schema{STRING}}, Field{name=target_field2, index=1, schema=Schema{STRING}}, Field{name=other_field, index=2, schema=Schema{STRUCT}}]";
 
-        final SinkRecord record = new SinkRecord("test", 0, keySchema, key, valueSchema, inputValue, 0);
-        final SinkRecord output = xform.apply(record);
-
-        final Struct inputStruct = (Struct) record.value();
-        final Struct outputStruct = (Struct) output.value();
-
-        Assertions.assertEquals(output.key(), record.key());
-        Assertions.assertEquals(inputValue.toString(), inputStruct.toString());
-        Assertions.assertEquals(outputValue, outputStruct.toString());
-        Assertions.assertEquals(outputSchema, outputStruct.schema().fields().toString());
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
 }
-
