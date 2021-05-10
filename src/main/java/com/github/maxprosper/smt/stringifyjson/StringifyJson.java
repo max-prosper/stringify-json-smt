@@ -25,13 +25,14 @@ import static org.apache.kafka.connect.transforms.util.Requirements.requireStruc
 /**
  * Main class that implements stringify JSON transformation.
  */
+@SuppressWarnings("unchecked")
 abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformation<R> {
     private static final Logger LOGGER = LoggerFactory.getLogger(StringifyJson.class);
 
     private static final String PURPOSE = "StringifyJson SMT";
     private List<String> targetFields;
 
-    private String delimiterJoin = ".";
+    private final String delimiterJoin = ".";
 
     interface ConfigName {
         String TARGET_FIELDS = "targetFields";
@@ -60,41 +61,36 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
     }
 
     private R applyWithSchema(R record) {
-        try {
-            Object recordValue = record.value();
-            if (recordValue == null) {
-                LOGGER.info("Record is null");
-                LOGGER.info(record.toString());
-                return record;
-            }
-
-            final Struct value = requireStruct(recordValue, PURPOSE);
-            HashMap<String, String> stringifiedFields = stringifyFields(value, targetFields);
-
-            final Schema updatedSchema = makeUpdatedSchema(null, value, stringifiedFields);
-            final Struct updatedValue = makeUpdatedValue(null, value, updatedSchema, stringifiedFields);
-
-            return record.newRecord(
-                    record.topic(),
-                    record.kafkaPartition(),
-                    record.keySchema(),
-                    record.key(),
-                    updatedSchema,
-                    updatedValue,
-                    record.timestamp()
-            );
-        } catch (DataException e) {
-            LOGGER.warn("StringifyJson fields missing from record: " + record.toString(), e);
+        Object recordValue = record.value();
+        if (recordValue == null) {
+            LOGGER.info("Record is null");
+            LOGGER.info(record.toString());
             return record;
         }
+
+        final Struct value = requireStruct(recordValue, PURPOSE);
+        HashMap<String, String> stringifiedFields = stringifyFields(value, targetFields);
+
+        if (stringifiedFields.size() == 0) {
+            LOGGER.info("No target fields present in the record, nothing changed");
+            LOGGER.info(record.toString());
+            return record;
+        }
+
+        final Schema updatedSchema = makeUpdatedSchema(null, value, stringifiedFields);
+        final Struct updatedValue = makeUpdatedValue(null, value, updatedSchema, stringifiedFields);
+
+        return newRecord(record, updatedSchema, updatedValue);
     }
 
     /**
      * Stringify values from specified fields.
-     * @param value Input record to read original fields.
+     *
+     * @param value        Input record to read original fields.
      * @param targetFields List of fields to stringify values from.
      * @return Resulting stringified values by field names.
      */
+    @SuppressWarnings("unchecked")
     private static HashMap<String, String> stringifyFields(Struct value, List<String> targetFields) {
         final HashMap<String, String> result = new HashMap<>(targetFields.size());
 
@@ -129,7 +125,8 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
 
     /**
      * Make schema for updated value.
-     * @param value Input value to take the schema from.
+     *
+     * @param value             Input value to take the schema from.
      * @param stringifiedFields Resulting stringified values by field names.
      * @return New schema for output record.
      */
@@ -156,8 +153,9 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
 
     /**
      * Replace values in target fields with stringified results and copy non-target values from original object.
-     * @param value Original value.
-     * @param updatedSchema Schema for new output record.
+     *
+     * @param value             Original value.
+     * @param updatedSchema     Schema for new output record.
      * @param stringifiedFields Stringified values by field names.
      * @return Output record with stringified values.
      */
@@ -250,6 +248,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         return updatedObject;
     }
 
+    @SuppressWarnings("unchecked")
     private static JSONObject mapToJSONObject(HashMap value) {
         JSONObject updatedObject = new JSONObject();
 
