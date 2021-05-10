@@ -41,6 +41,20 @@ public class StringifyJsonTest {
     }
 
     @Test
+    public void noSchema() {
+        xform.configure(new HashMap<>());
+
+        final Map<String, Object> inputValue = new HashMap<>();
+        inputValue.put("first_field", 42);
+        inputValue.put("other_field", 24);
+
+        final SinkRecord record = new SinkRecord("test", 0, null, null, null, inputValue, 0);
+        final SinkRecord output = xform.apply(record);
+
+        Assertions.assertNull(output);
+    }
+
+    @Test
     public void integerField() {
         final Schema valueSchema = SchemaBuilder.struct()
                 .field("target_field", Schema.INT32_SCHEMA)
@@ -129,7 +143,7 @@ public class StringifyJsonTest {
     }
 
     @Test
-    public void nestedMapField() {
+    public void nestedMap() {
         final Schema mapSchema = SchemaBuilder.map(Schema.STRING_SCHEMA, Schema.STRING_SCHEMA);
         final Schema nestedMapSchema = SchemaBuilder.map(Schema.STRING_SCHEMA, mapSchema);
         final Schema valueSchema = SchemaBuilder.struct()
@@ -155,8 +169,31 @@ public class StringifyJsonTest {
         runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
 
+
     @Test
-    public void arrayOfIntsField() {
+    public void arrayOfStrings() {
+        final Schema arraySchema = SchemaBuilder.array(Schema.STRING_SCHEMA);
+        final Schema valueSchema = SchemaBuilder.struct()
+                .field("target_field", arraySchema)
+                .field("other_field", Schema.INT32_SCHEMA);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final List<String> array = Arrays.asList("42", "24");
+        final Struct inputValue = new Struct(valueSchema)
+                .put("target_field", array)
+                .put("other_field", 256);
+
+        final String outputValue = "Struct{target_field=[\"42\", \"24\"],other_field=256}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
+
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
+    }
+
+    @Test
+    public void arrayOfInts() {
         final Schema arraySchema = SchemaBuilder.array(Schema.INT32_SCHEMA);
         final Schema valueSchema = SchemaBuilder.struct()
                 .field("target_field", arraySchema)
