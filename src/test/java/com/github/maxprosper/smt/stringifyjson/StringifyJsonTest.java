@@ -193,6 +193,27 @@ public class StringifyJsonTest {
     }
 
     @Test
+    public void arrayWithNullValue() {
+        final Schema arraySchema = SchemaBuilder.array(Schema.OPTIONAL_STRING_SCHEMA);
+        final Schema valueSchema = SchemaBuilder.struct()
+                .field("target_field", arraySchema)
+                .field("other_field", Schema.INT32_SCHEMA);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final List<String> array = Arrays.asList("42", "24", null);
+        final Struct inputValue = new Struct(valueSchema)
+                .put("target_field", array)
+                .put("other_field", 256);
+
+        final String outputValue = "Struct{target_field=[\"42\", \"24\", null],other_field=256}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
+
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
+    }
+    @Test
     public void arrayOfInts() {
         final Schema arraySchema = SchemaBuilder.array(Schema.INT32_SCHEMA);
         final Schema valueSchema = SchemaBuilder.struct()

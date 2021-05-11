@@ -186,7 +186,12 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             if (builder.toString().length() != 0) {
                 builder.append(", ");
             }
-            Schema.Type valueType = Values.inferSchema(elem).type();
+            Schema valueSchema = Values.inferSchema(elem);
+            if (valueSchema == null) {
+               builder.append("null");
+               continue;
+            }
+            Schema.Type valueType = valueSchema.type();
             if (valueType.equals(Schema.Type.STRUCT)) {
                 builder.append(structToJSONObject((Struct) elem));
 
