@@ -9,7 +9,6 @@ import org.apache.kafka.connect.data.Values;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.errors.DataException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -55,12 +54,8 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         if (record.valueSchema() == null) {
             LOGGER.info("Schemaless records are not supported");
             return null;
-        } else {
-            return applyWithSchema(record);
         }
-    }
 
-    private R applyWithSchema(R record) {
         Object recordValue = record.value();
         if (recordValue == null) {
             LOGGER.info("Record is null");
@@ -102,16 +97,16 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             String strValue;
             Schema.Type fieldValueType = Values.inferSchema(fieldValue).type();
 
-            if (fieldValueType == Schema.Type.STRUCT) {
+            if (fieldValueType.equals(Schema.Type.STRUCT)) {
                 strValue = structToJSONObject((Struct) fieldValue).toString();
 
-            } else if (fieldValueType == Schema.Type.MAP) {
+            } else if (fieldValueType.equals(Schema.Type.MAP)) {
                 strValue = mapToJSONObject((HashMap) fieldValue).toString();
 
-            } else if (fieldValueType == Schema.Type.ARRAY) {
+            } else if (fieldValueType.equals(Schema.Type.ARRAY)) {
                 strValue = arrayValueToString((List<Object>) fieldValue);
 
-            } else if (fieldValueType == Schema.Type.STRING) {
+            } else if (fieldValueType.equals(Schema.Type.STRING)) {
                 strValue = fieldValue.toString();
 
             } else {
@@ -139,7 +134,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
 
             if (stringifiedFields.containsKey(absoluteKey)) {
                 fieldSchema = field.schema().isOptional() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
-            } else if (field.schema().type() == Schema.Type.STRUCT) {
+            } else if (field.schema().type().equals(Schema.Type.STRUCT)) {
                 fieldSchema = makeUpdatedSchema(absoluteKey, value.getStruct(field.name()), stringifiedFields);
             } else {
                 fieldSchema = field.schema();
@@ -167,7 +162,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             final String absoluteKey = joinKeys(parentKey, field.name());
             if (stringifiedFields.containsKey(absoluteKey)) {
                 fieldValue = stringifiedFields.get(absoluteKey);
-            } else if (field.schema().type() == Schema.Type.STRUCT) {
+            } else if (field.schema().type().equals(Schema.Type.STRUCT)) {
                 fieldValue = makeUpdatedValue(absoluteKey, value.getStruct(field.name()),
                         updatedSchema.field(field.name()).schema(), stringifiedFields);
             } else {
@@ -192,16 +187,16 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                 builder.append(", ");
             }
             Schema.Type valueType = Values.inferSchema(elem).type();
-            if (valueType == Schema.Type.STRUCT) {
+            if (valueType.equals(Schema.Type.STRUCT)) {
                 builder.append(structToJSONObject((Struct) elem));
 
-            } else if (valueType == Schema.Type.MAP) {
+            } else if (valueType.equals(Schema.Type.MAP)) {
                 builder.append(mapToJSONObject((HashMap) elem));
 
-            } else if (valueType == Schema.Type.ARRAY) {
+            } else if (valueType.equals(Schema.Type.ARRAY)) {
                 builder.append(listToJSONArray((List<Object>) elem));
 
-            } else if (valueType == Schema.Type.STRING) {
+            } else if (valueType.equals(Schema.Type.STRING)) {
                 builder.append("\"").append(elem).append("\"");
 
             } else {
@@ -218,7 +213,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         String exceptionMsg = "Failed to put updated object value to field '{}', error: '{}'";
         for (Field field : value.schema().fields()) {
             Schema.Type fieldType = field.schema().type();
-            if (fieldType == Schema.Type.STRUCT) {
+            if (fieldType.equals(Schema.Type.STRUCT)) {
                 try {
                     updatedObject.put(field.name(), structToJSONObject(value.getStruct(field.name())));
                 } catch (JSONException e) {
@@ -227,7 +222,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                     return null;
                 }
 
-            } else if (fieldType == Schema.Type.ARRAY) {
+            } else if (fieldType.equals(Schema.Type.ARRAY)) {
                 try {
                     updatedObject.put(field.name(), listToJSONArray(value.getArray(field.name())));
                 } catch (JSONException e) {
@@ -252,7 +247,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
     private static JSONObject mapToJSONObject(HashMap value) {
         JSONObject updatedObject = new JSONObject();
 
-        String exceptionMsg = "Failed to put updated map value to key '{}', error: '{}'";
+        String exceptionMsg = "Failed to put updated map value for key '{}', error: '{}'";
         for (Object key : value.keySet()) {
             Object val = value.get(key);
 
@@ -270,7 +265,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             Struct structValue = (Struct) val;
             Schema.Type fieldType = structValue.schema().type();
 
-            if (fieldType == Schema.Type.STRUCT) {
+            if (fieldType.equals(Schema.Type.STRUCT)) {
                 try {
                     updatedObject.put(key.toString(), structToJSONObject(structValue));
                 } catch (JSONException e) {
@@ -279,7 +274,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                     return null;
                 }
 
-            } else if (fieldType == Schema.Type.MAP) {
+            } else if (fieldType.equals(Schema.Type.MAP)) {
                 try {
                     updatedObject.put(key.toString(), mapToJSONObject((HashMap) val));
                 } catch (JSONException e) {
@@ -288,7 +283,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                     return null;
                 }
 
-            } else if (fieldType == Schema.Type.ARRAY) {
+            } else if (fieldType.equals(Schema.Type.ARRAY)) {
                 try {
                     updatedObject.put(key.toString(), listToJSONArray((List<Object>) structValue));
                 } catch (JSONException e) {
@@ -320,11 +315,11 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             }
 
             Struct struct = (Struct) element;
-            if (struct.schema().type() == Schema.Type.ARRAY) {
+            if (struct.schema().type().equals(Schema.Type.ARRAY)) {
                 result.put(listToJSONArray((List<Object>) element));
                 continue;
             }
-            if (struct.schema().type() == Schema.Type.MAP) {
+            if (struct.schema().type().equals(Schema.Type.MAP)) {
                 result.put(mapToJSONObject((HashMap) element));
                 continue;
             }
