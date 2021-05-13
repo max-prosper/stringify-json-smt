@@ -88,11 +88,22 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
     @SuppressWarnings("unchecked")
     private static HashMap<String, String> stringifyFields(Struct value, List<String> targetFields) {
         final HashMap<String, String> result = new HashMap<>(targetFields.size());
+        final Schema valueSchema = value.schema();
 
         for (String field : targetFields) {
             String[] pathArr = field.split("\\.");
             List<String> path = Arrays.asList(pathArr);
+
+            if (valueSchema.field(field) == null) {
+                LOGGER.warn("target field {} not present in the record schema", field);
+                continue;
+            }
+
             Object fieldValue = getFieldValue(path, value);
+            if (fieldValue == null) {
+                LOGGER.info("target field {} is null, nothing to stringify", field);
+                continue;
+            }
 
             String strValue;
             Schema.Type fieldValueType = Values.inferSchema(fieldValue).type();
@@ -188,8 +199,8 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             }
             Schema valueSchema = Values.inferSchema(elem);
             if (valueSchema == null) {
-               builder.append("null");
-               continue;
+                builder.append("null");
+                continue;
             }
             Schema.Type valueType = valueSchema.type();
             if (valueType.equals(Schema.Type.STRUCT)) {

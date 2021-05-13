@@ -55,6 +55,42 @@ public class StringifyJsonTest {
     }
 
     @Test
+    public void nullTargetField() {
+        final Schema valueSchema = SchemaBuilder.struct()
+                .field("target_field", Schema.OPTIONAL_STRING_SCHEMA)
+                .field("other_field", Schema.INT32_SCHEMA);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final Struct inputValue = new Struct(valueSchema)
+                .put("other_field", 24);
+
+        final String outputValue = "Struct{other_field=24}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
+
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
+    }
+
+    @Test
+    public void targetFieldNotPresentInTheSchema() {
+        final Schema valueSchema = SchemaBuilder.struct()
+                .field("other_field", Schema.INT32_SCHEMA);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final Struct inputValue = new Struct(valueSchema)
+                .put("other_field", 24);
+
+        final String outputValue = "Struct{other_field=24}";
+        final String outputSchema = "[Field{name=other_field, index=0, schema=Schema{INT32}}]";
+
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
+    }
+    @Test
     public void integerField() {
         final Schema valueSchema = SchemaBuilder.struct()
                 .field("target_field", Schema.INT32_SCHEMA)

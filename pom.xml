@@ -6,7 +6,7 @@
 
     <groupId>com.github.maxprosper.smt.stringifyjson</groupId>
     <artifactId>stringify-json-smt</artifactId>
-    <version>0.0.1</version>
+    <version>0.0.2</version>
 
     <properties>
         <commons-lang3.version>3.8.1</commons-lang3.version>
