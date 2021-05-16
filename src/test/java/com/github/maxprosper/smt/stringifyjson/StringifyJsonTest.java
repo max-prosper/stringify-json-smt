@@ -65,9 +65,10 @@ public class StringifyJsonTest {
         xform.configure(props);
 
         final Struct inputValue = new Struct(valueSchema)
+                .put("target_field", null)
                 .put("other_field", 24);
 
-        final String outputValue = "Struct{other_field=24}";
+        final String outputValue = "Struct{target_field=null,other_field=24}";
         final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}]";
 
         runAssertions(valueSchema, inputValue, outputSchema, outputValue);
@@ -90,6 +91,7 @@ public class StringifyJsonTest {
 
         runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
+
     @Test
     public void integerField() {
         final Schema valueSchema = SchemaBuilder.struct()
@@ -249,6 +251,7 @@ public class StringifyJsonTest {
 
         runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
+
     @Test
     public void arrayOfInts() {
         final Schema arraySchema = SchemaBuilder.array(Schema.INT32_SCHEMA);

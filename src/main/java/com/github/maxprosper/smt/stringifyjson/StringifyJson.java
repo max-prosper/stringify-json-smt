@@ -51,12 +51,12 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
 
     @Override
     public R apply(R record) {
-        if (record.valueSchema() == null) {
+        if (operatingSchema(record) == null) {
             LOGGER.info("Schemaless records are not supported");
             return null;
         }
 
-        Object recordValue = record.value();
+        Object recordValue = operatingValue(record);
         if (recordValue == null) {
             LOGGER.info("Record is null");
             LOGGER.info(record.toString());
@@ -94,20 +94,26 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             String[] pathArr = field.split("\\.");
             List<String> path = Arrays.asList(pathArr);
 
-            if (valueSchema.field(field) == null) {
-                LOGGER.warn("target field {} not present in the record schema", field);
+            Object fieldSchema = getSchemaField(path, valueSchema);
+            if (fieldSchema == null) {
+                LOGGER.warn("target field {} is not present in the record schema {}", field, fieldSchema);
                 continue;
             }
 
             Object fieldValue = getFieldValue(path, value);
             if (fieldValue == null) {
-                LOGGER.info("target field {} is null, nothing to stringify", field);
+                result.put(field, "null");
                 continue;
             }
 
-            String strValue;
-            Schema.Type fieldValueType = Values.inferSchema(fieldValue).type();
+            Schema fieldValueSchema = Values.inferSchema(fieldValue);
+            if (fieldValueSchema == null) {
+                result.put(field, fieldValue.toString());
+                continue;
+            }
+            Schema.Type fieldValueType = fieldValueSchema.type();
 
+            String strValue;
             if (fieldValueType.equals(Schema.Type.STRUCT)) {
                 strValue = structToJSONObject((Struct) fieldValue).toString();
 
@@ -123,6 +129,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             } else {
                 strValue = String.valueOf(fieldValue);
             }
+
             result.put(field, strValue);
         }
 
@@ -137,6 +144,10 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
      * @return New schema for output record.
      */
     private Schema makeUpdatedSchema(String parentKey, Struct value, HashMap<String, String> stringifiedFields) {
+        if (value == null || value.schema() == null) {
+            return null;
+        }
+
         final SchemaBuilder builder = SchemaBuilder.struct();
 
         for (Field field : value.schema().fields()) {
@@ -145,8 +156,10 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
 
             if (stringifiedFields.containsKey(absoluteKey)) {
                 fieldSchema = field.schema().isOptional() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
+
             } else if (field.schema().type().equals(Schema.Type.STRUCT)) {
                 fieldSchema = makeUpdatedSchema(absoluteKey, value.getStruct(field.name()), stringifiedFields);
+
             } else {
                 fieldSchema = field.schema();
             }
@@ -171,6 +184,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         for (Field field : value.schema().fields()) {
             final Object fieldValue;
             final String absoluteKey = joinKeys(parentKey, field.name());
+
             if (stringifiedFields.containsKey(absoluteKey)) {
                 fieldValue = stringifiedFields.get(absoluteKey);
             } else if (field.schema().type().equals(Schema.Type.STRUCT)) {
@@ -179,6 +193,7 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             } else {
                 fieldValue = value.get(field.name());
             }
+
             updatedValue.put(field.name(), fieldValue);
         }
 
@@ -187,7 +202,10 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
 
     @SuppressWarnings("unchecked")
     public static String arrayValueToString(List<Object> value) {
-        if (value == null || value.size() == 0) {
+        if (value == null) {
+            return "null";
+        }
+        if (value.size() == 0) {
             return "[]";
         }
 
@@ -197,9 +215,13 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
             if (builder.toString().length() != 0) {
                 builder.append(", ");
             }
+            if (elem == null) {
+                builder.append("null");
+                continue;
+            }
             Schema valueSchema = Values.inferSchema(elem);
             if (valueSchema == null) {
-                builder.append("null");
+                builder.append(elem.toString());
                 continue;
             }
             Schema.Type valueType = valueSchema.type();
@@ -344,6 +366,16 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
         }
 
         return result;
+    }
+
+    private static Object getSchemaField(List<String> path, Schema schema) {
+        if (path.isEmpty()) {
+            return null;
+        } else if (path.size() == 1) {
+            return schema.field(path.get(0));
+        } else {
+            return getSchemaField(path.subList(1, path.size()), schema.field(path.get(0)).schema());
+        }
     }
 
     private static Object getFieldValue(List<String> path, Struct value) {
