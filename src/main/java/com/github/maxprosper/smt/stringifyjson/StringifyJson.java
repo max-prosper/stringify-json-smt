@@ -158,7 +158,8 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
                 fieldSchema = field.schema().isOptional() ? Schema.OPTIONAL_STRING_SCHEMA : Schema.STRING_SCHEMA;
 
             } else if (field.schema().type().equals(Schema.Type.STRUCT)) {
-                fieldSchema = makeUpdatedSchema(absoluteKey, value.getStruct(field.name()), stringifiedFields);
+                Schema sb = makeUpdatedSchema(absoluteKey, value.getStruct(field.name()), stringifiedFields);
+                fieldSchema = (sb != null) ? sb : SchemaBuilder.struct().optional().build();
 
             } else {
                 fieldSchema = field.schema();
@@ -179,6 +180,10 @@ abstract class StringifyJson<R extends ConnectRecord<R>> implements Transformati
      * @return Output record with stringified values.
      */
     private Struct makeUpdatedValue(String parentKey, Struct value, Schema updatedSchema, HashMap<String, String> stringifiedFields) {
+        if (value == null) {
+            return null;
+        }
+
         final Struct updatedValue = new Struct(updatedSchema);
 
         for (Field field : value.schema().fields()) {
