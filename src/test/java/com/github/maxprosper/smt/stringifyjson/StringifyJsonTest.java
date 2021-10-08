@@ -389,4 +389,26 @@ public class StringifyJsonTest {
 
         runAssertions(valueSchema, inputValue, outputSchema, outputValue);
     }
+
+    @Test
+    public void optionalStructInSchema() {
+        Schema optStruct = SchemaBuilder.struct().field("key_1", Schema.STRING_SCHEMA).optional().build();
+        final Schema valueSchema = SchemaBuilder.struct()
+                .field("target_field", Schema.INT32_SCHEMA)
+                .field("other_field", Schema.INT32_SCHEMA)
+                .field("opt_struct_field", optStruct);
+
+        final Map<String, String> props = new HashMap<>();
+        props.put(propTargetFields, "target_field");
+        xform.configure(props);
+
+        final Struct inputValue = new Struct(valueSchema)
+                .put("target_field", 42)
+                .put("other_field", 24);
+
+        final String outputValue = "Struct{target_field=42,other_field=24}";
+        final String outputSchema = "[Field{name=target_field, index=0, schema=Schema{STRING}}, Field{name=other_field, index=1, schema=Schema{INT32}}, Field{name=opt_struct_field, index=2, schema=Schema{STRUCT}}]";
+
+        runAssertions(valueSchema, inputValue, outputSchema, outputValue);
+    }
 }
