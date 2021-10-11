@@ -26,12 +26,12 @@ COPY ./target/stringify-json-smt-0.0.4-jar-with-deps.jar $KAFKA_CONNECT_PLUGINS_
 Or download current release:
 ~~~Dockerfile
 RUN curl -fSL -o /tmp/plugin.tar.gz \
-    https://github.com/max-prosper/stringify-json-smt/releases/download/0.0.3/stringify-json-smt-0.0.4.tar.gz && \
+    https://github.com/max-prosper/stringify-json-smt/releases/download/0.0.4/stringify-json-smt-0.0.4.tar.gz && \
     tar -xzf /tmp/plugin.tar.gz -C $KAFKA_CONNECT_PLUGINS_DIR && \
     rm -f /tmp/plugin.tar.gz;
 ~~~
 
 ## Build release file
 - Increment version in `pom.xml` (e.g. to `0.0.5`).
-- Run build script: `./scripts/build-release.sh 0.0.4`.
+- Run build script: `./scripts/build-release.sh 0.0.5`.
 - Take `*.tar.gz` file from `target` folder and publish it.
